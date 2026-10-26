@@ -1,43 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>Isla</title>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
+    <div id="isla" class="isla">
+      <span class="oreja izq"></span>
+      <span class="oreja der"></span>
 
-      <div class="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
+      <!-- Vista compacta (tipo notch) -->
+      <div class="compacta">
+        <span class="c-izq" id="c-izq"></span>
+        <span class="c-centro" id="c-centro"></span>
+        <span class="c-der" id="c-der"></span>
       </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
+      <!-- Vista expandida -->
+      <div class="expandida">
+        <header class="cabecera">
+          <div class="titulo" id="titulo"></div>
+          <div class="reloj">
+            <span class="estado" id="estado"></span>
+            <span id="fecha"></span>
+            <b id="hora"></b>
+          </div>
+          <div class="indicador" id="indicador"></div>
+        </header>
+        <button class="flecha izq" id="anterior" aria-label="Vista anterior"></button>
+        <div class="vistas" id="vistas"></div>
+        <button class="flecha der" id="siguiente" aria-label="Vista siguiente"></button>
+        <div class="puntos" id="puntos"></div>
+        <div class="notificacion" id="notificacion"></div>
+      </div>
+    </div>
   </body>
 </html>
