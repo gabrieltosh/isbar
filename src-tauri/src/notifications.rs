@@ -8,6 +8,7 @@
 //! suscribir, se consulta la lista cada segundo y se comparan los IDs.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
@@ -96,6 +97,7 @@ fn bucle(app: &AppHandle) -> WinResult<()> {
         Ok(lista) => lista.iter().filter_map(|n| n.Id().ok()).collect(),
         Err(_) => HashSet::new(),
     };
+    fijar_pendientes(app, vistas.len());
 
     loop {
         match rx.recv_timeout(espera) {
@@ -125,8 +127,34 @@ fn bucle(app: &AppHandle) -> WinResult<()> {
                 Err(e) => eprintln!("notificaciones: no se pudo leer una notificación: {e}"),
             }
         }
+        fijar_pendientes(app, actuales.len());
         vistas = actuales;
     }
+}
+
+/// Notificaciones que siguen en el Centro de actividades (sin descartar).
+static PENDIENTES: AtomicU32 = AtomicU32::new(0);
+
+/// Guarda el número de pendientes y avisa al frontend solo si cambia.
+fn fijar_pendientes(app: &AppHandle, total: usize) {
+    let total = u32::try_from(total).unwrap_or(u32::MAX);
+    if PENDIENTES.swap(total, Ordering::SeqCst) != total {
+        let _ = app.emit("notification-count", total);
+    }
+}
+
+/// Para que el frontend sepa el número al arrancar (el evento puede llegar antes).
+#[tauri::command]
+pub fn contar_notificaciones() -> u32 {
+    PENDIENTES.load(Ordering::SeqCst)
+}
+
+/// Abre el Centro de actividades de Windows, donde se leen y descartan.
+#[tauri::command]
+pub fn abrir_centro_notificaciones(app: AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url("ms-actioncenter:", None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 fn consultar(escucha: &Escucha) -> WinResult<Vec<UserNotification>> {

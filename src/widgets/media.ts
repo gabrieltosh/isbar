@@ -23,6 +23,11 @@ let posicionBase = 0;
 let marcaBase = 0;
 let raiz: HTMLElement;
 
+/** Hay una sesión de música (sonando o en pausa). */
+export function hayMusica(): boolean {
+  return info !== null;
+}
+
 export function musicaSonando(): boolean {
   return info?.reproduciendo ?? false;
 }
@@ -58,7 +63,7 @@ function comando(nombre: string): void {
 
 export const media: Vista = {
   id: "media",
-  titulo: "",
+  titulo: `<span class="verde">Música</span>`,
 
   montar(contenedor) {
     raiz = contenedor;

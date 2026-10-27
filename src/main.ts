@@ -1,10 +1,16 @@
 // Arranque de la isla: estados compacta/expandida, carrusel de vistas, reloj y avisos.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { alAviso, alCompacta } from "./bus";
+import { AJUSTES_POR_DEFECTO, EVENTO_AJUSTES, NOMBRES_VISTAS, leerAjustes, type Ajustes } from "./ajustes";
+import { alAviso, alCompacta, alTerminarAviso } from "./bus";
 import { barras, icono } from "./icons";
+import { iniciarSonido } from "./sonido";
+import { guardar, leer } from "./store";
 import { $ } from "./util";
-import { media, musicaSonando } from "./widgets/media";
+import { calendario } from "./widgets/calendar";
+import { claude } from "./widgets/claude";
+import { pausas } from "./widgets/pausas";
+import { hayMusica, media, musicaSonando } from "./widgets/media";
 import { iniciarNotificaciones } from "./widgets/notification";
 import { pomodoro } from "./widgets/pomodoro";
 import { bandeja } from "./widgets/shelf";
@@ -12,32 +18,89 @@ import type { Compacta, Vista } from "./widgets/tipos";
 import { tareasVista } from "./widgets/todo";
 import { agua } from "./widgets/water";
 
-const VISTAS: Vista[] = [media, pomodoro, agua, bandeja, tareasVista];
+const VISTAS: Vista[] = [media, pomodoro, agua, bandeja, tareasVista, calendario, claude, pausas];
+
+// Icono de cada vista en la navegación de la cabecera (Música usa las barritas animadas)
+const ICONO_VISTA: Record<string, string> = {
+  pomodoro: icono.cronometro,
+  agua: icono.gota,
+  bandeja: icono.bandeja,
+  tareas: icono.lista,
+  calendario: icono.calendario,
+  claude: icono.claude,
+  pausas: icono.postura,
+};
 
 // Deben coincidir con los tamaños de styles.css
 const TAM = {
   compacta: { w: 150, h: 34 },
-  expandida: { w: 470, h: 160 },
+  expandida: { w: 510, h: 180 },
 };
+/** Vistas que necesitan la isla más alta. Una vista también puede pedirlo según su estado (Vista.alto). */
+const ALTO_VISTA: Record<string, number> = {
+  calendario: 270, // para que el mes se lea bien
+};
+/** Píldora compacta sin iconos a los lados: solo la hora. */
+const ANCHO_COMPACTA_SOLA = 88;
+/** Píldora compacta con "N notificaciones" en lugar de la hora. */
+const ANCHO_COMPACTA_ANCHA = 184;
+/** Durante una notificación la isla se ajusta al aviso. */
+const ALTO_NOTIFICACION = 116;
+/** Vista que se abre si no hay ninguna guardada (o la guardada no está disponible). */
+const VISTA_POR_DEFECTO = "calendario";
 const RETARDO_SALIDA = 400;
 const DURACION_TRANSICION = 380;
 
 const isla = $(document, "#isla");
 const contVistas = $(document, "#vistas");
-const titulo = $(document, "#titulo");
 const puntos = $(document, "#puntos");
+const titulo = $(document, "#titulo");
 
 let abierta = false;
 let raton = false; // el cursor está sobre la píldora (lo dice Rust)
 let avisoHasta = 0;
-let indice = 0;
+// Vistas activas, en el orden de la configuración (índices de VISTAS)
+let orden: number[] = VISTAS.map((_, i) => i);
+let posicion = 0;
+let escala = 1;
+let ajustes: Ajustes = AJUSTES_POR_DEFECTO;
+let habiaMusica = false;
+let pendientes = 0; // notificaciones sin descartar
 let tSalida = 0;
+// Hasta restaurar la última vista guardada no se guarda ninguna (el arranque no cuenta)
+let vistaRestaurada = false;
 
 // ---------- Estados compacta / expandida ----------
 
 /** Informa a Rust del rectángulo de la píldora para el click-through. */
+/** Alto de la isla expandida para la vista actual, sin contar notificaciones. */
+function altoVista(): number {
+  const id = isla.dataset.vista ?? "";
+  return VISTAS.find((v) => v.id === id)?.alto?.() ?? ALTO_VISTA[id] ?? TAM.expandida.h;
+}
+
+/** Alto que le corresponde a la isla expandida por la vista actual (o por una notificación). */
+function altoNatural(): number {
+  return isla.classList.contains("con-notificacion") ? ALTO_NOTIFICACION : altoVista();
+}
+
+/** El alto lo decide este archivo: se le pasa al CSS (--alto-vista) y a Rust (rect). */
+let altoAplicado = 0;
+function actualizarAlto(): void {
+  const alto = altoVista();
+  if (alto === altoAplicado) return;
+  altoAplicado = alto;
+  isla.style.setProperty("--alto-vista", `${alto}px`);
+  if (abierta) informarRect("expandida");
+}
+
 function informarRect(estado: keyof typeof TAM): void {
-  const { w, h } = TAM[estado];
+  const alto = estado === "expandida" ? altoNatural() : TAM[estado].h;
+  let ancho = TAM[estado].w;
+  if (estado === "compacta" && isla.classList.contains("sola")) ancho = ANCHO_COMPACTA_SOLA;
+  if (estado === "compacta" && isla.classList.contains("ancha")) ancho = ANCHO_COMPACTA_ANCHA;
+  const w = ancho * escala;
+  const h = alto * escala;
   invoke("set_island_rect", { x: (window.innerWidth - w) / 2, y: 0, w, h }).catch(console.error);
 }
 
@@ -66,6 +129,9 @@ function programarCierre(): void {
 
 listen<boolean>("isla-hover", ({ payload }) => {
   raton = payload;
+  // Sin el cursor encima, la ventana no recibe el ratón y el webview se quedaría con el
+  // último :hover puesto (un icono "encendido"); así se suelta
+  isla.classList.toggle("sin-raton", !raton);
   window.clearTimeout(tSalida);
   if (raton) abrir();
   else programarCierre();
@@ -79,9 +145,14 @@ document.addEventListener("focusout", () => {
   if (!raton) programarCierre();
 });
 
+// Un aviso cerrado antes de tiempo (botón "Cerrar" de una notificación) deja cerrar la isla
+alTerminarAviso(() => {
+  avisoHasta = 0;
+  cerrar();
+});
+
 alAviso(({ vista, duracion = 5000 }) => {
-  const i = VISTAS.findIndex((v) => v.id === vista);
-  if (i >= 0) ir(i);
+  if (vista) irAVista(vista);
   avisoHasta = Date.now() + duracion;
   abrir();
   // Reinicia la animación de aviso aunque ya estuviera puesta
@@ -103,25 +174,33 @@ const paneles = VISTAS.map((v) => {
   return panel;
 });
 
-puntos.innerHTML = VISTAS.map(() => "<i></i>").join("");
-
+/** Va a la posición n dentro de las vistas activas (con vuelta al principio). */
 function ir(n: number): void {
-  indice = (n + VISTAS.length) % VISTAS.length;
+  posicion = (n + orden.length) % orden.length;
+  const activa = orden[posicion];
   paneles.forEach((p, i) => {
-    p.classList.toggle("activa", i === indice);
-    p.classList.toggle("antes", i < indice);
+    p.classList.toggle("activa", i === activa);
+    p.classList.toggle("antes", orden.indexOf(i) < posicion);
   });
-  puntos.querySelectorAll("i").forEach((p, i) => p.classList.toggle("activo", i === indice));
-  titulo.innerHTML = VISTAS[indice].titulo;
-  isla.dataset.vista = VISTAS[indice].id;
+  isla.dataset.vista = VISTAS[activa].id;
+  titulo.innerHTML = VISTAS[activa].titulo;
+  marcarIconoActivo();
+  // El alto cambia según la vista (Calendario es más alto)
+  actualizarAlto();
+  // Se recuerda para la próxima vez que se abra la isla o la app
+  if (vistaRestaurada) void guardar("ultimaVista", VISTAS[activa].id);
 }
 
-const btnAnterior = $(document, "#anterior");
-const btnSiguiente = $(document, "#siguiente");
-btnAnterior.innerHTML = icono.izquierda;
-btnSiguiente.innerHTML = icono.derecha;
-btnAnterior.addEventListener("click", () => ir(indice - 1));
-btnSiguiente.addEventListener("click", () => ir(indice + 1));
+/** Va a una vista por su id, si está activa. */
+function irAVista(id: string): void {
+  const p = orden.findIndex((i) => VISTAS[i].id === id);
+  if (p >= 0) ir(p);
+}
+
+puntos.addEventListener("click", (e) => {
+  const boton = (e.target as HTMLElement).closest<HTMLElement>("[data-pos]");
+  if (boton) ir(Number(boton.dataset.pos));
+});
 
 let ultimaRueda = 0;
 isla.addEventListener(
@@ -130,7 +209,7 @@ isla.addEventListener(
     const ahora = Date.now();
     if (!abierta || ahora - ultimaRueda < 300) return;
     ultimaRueda = ahora;
-    ir(indice + (e.deltaY > 0 || e.deltaX > 0 ? 1 : -1));
+    ir(posicion + (e.deltaY > 0 || e.deltaX > 0 ? 1 : -1));
   },
   { passive: true },
 );
@@ -154,7 +233,6 @@ function pintarReloj(): void {
 const cIzq = $(document, "#c-izq");
 const cCentro = $(document, "#c-centro");
 const cDer = $(document, "#c-der");
-const indicador = $(document, "#indicador");
 
 function fijarHtml(el: HTMLElement, html: string): void {
   // Solo se reescribe si cambia, para no reiniciar animaciones
@@ -163,23 +241,135 @@ function fijarHtml(el: HTMLElement, html: string): void {
 
 function pintarCompacta(): void {
   let c: Required<Compacta> = {
-    izq: `<span class="estado">${icono.estado}</span>`,
-    centro: `<span class="c-hora">${horaActual}</span>`,
-    der: barras(false),
+    // La campana solo aparece si hay notificaciones pendientes, y entonces en lugar de la
+    // hora se avisa de cuántas hay (salvo que una vista muestre algo más importante)
+    izq: pendientes > 0 ? `<span class="campana pendientes">${icono.campana}</span>` : "",
+    centro:
+      pendientes > 0
+        ? `<span class="c-notif">${pendientes} ${pendientes === 1 ? "notificación" : "notificaciones"}</span>`
+        : `<span class="c-hora">${horaActual}</span>`,
+    der: "",
   };
   for (const v of VISTAS) c = { ...c, ...v.compacta?.() };
   fijarHtml(cIzq, c.izq);
   fijarHtml(cCentro, c.centro);
   fijarHtml(cDer, c.der);
-  fijarHtml(indicador, barras(musicaSonando()));
+  // Sin iconos a los lados la píldora se estrecha; con "N notificaciones" se ensancha.
+  // El rect se reenvía por el MutationObserver
+  isla.classList.toggle("sola", !c.izq && !c.der);
+  isla.classList.toggle("ancha", c.centro.includes("c-notif"));
+  // Sin sesión de música tampoco se muestra la vista de Música (ni su icono abajo)
+  const musica = hayMusica();
+  if (musica !== habiaMusica) {
+    habiaMusica = musica;
+    calcularOrden();
+  }
+  // Las barritas de Música se animan mientras suena
+  const iconoMusica = puntos.querySelector<HTMLElement>('[data-vista="media"]');
+  if (iconoMusica) fijarHtml(iconoMusica, barras(musicaSonando()));
 }
 
-alCompacta(pintarCompacta);
+alCompacta(() => {
+  pintarCompacta();
+  // Una vista puede cambiar de alto según su estado (p. ej. al empezar una rutina de pausas)
+  actualizarAlto();
+});
+
+// ---------- Ajustes ----------
+
+/** Vistas activas según la configuración y si hay música. */
+function calcularOrden(preferida = VISTAS[orden[posicion]]?.id): void {
+  orden = ajustes.vistas
+    .filter((id) => !ajustes.ocultas.includes(id) && (id !== "media" || hayMusica()))
+    .map((id) => VISTAS.findIndex((v) => v.id === id))
+    .filter((i) => i >= 0);
+  // Siempre queda al menos una vista (la primera que no sea Música)
+  if (orden.length === 0) orden = [VISTAS.findIndex((v) => v.id !== "media")];
+  // Barra de navegación: un icono por vista activa, en el orden de la configuración.
+  // El Calendario no lleva icono: se abre pulsando la fecha de arriba (y con la rueda)
+  puntos.innerHTML = orden
+    .map((i, p) => {
+      const id = VISTAS[i].id;
+      if (id === "calendario") return "";
+      const nombre = NOMBRES_VISTAS[id] ?? "";
+      const simbolo = id === "media" ? barras(musicaSonando()) : (ICONO_VISTA[id] ?? "");
+      return `<button class="icono-cab" data-pos="${p}" data-vista="${id}" title="${nombre}" aria-label="${nombre}">${simbolo}</button>`;
+    })
+    .join("");
+  const buscar = (id?: string) => orden.findIndex((i) => VISTAS[i].id === id);
+  const p = buscar(preferida);
+  const porDefecto = buscar(VISTA_POR_DEFECTO);
+  ir(p >= 0 ? p : porDefecto >= 0 ? porDefecto : 0);
+}
+
+/** El icono de la vista que se está viendo va en blanco y subrayado. */
+function marcarIconoActivo(): void {
+  const actual = isla.dataset.vista;
+  puntos.querySelectorAll<HTMLElement>("[data-vista]").forEach((b) => {
+    const activo = b.dataset.vista === actual;
+    b.classList.toggle("activo", activo);
+    b.setAttribute("aria-current", activo ? "true" : "false");
+  });
+  // En el Calendario, lo que se marca es la fecha de arriba (su acceso)
+  const fecha = $(document, "#reloj");
+  fecha.classList.toggle("activo", actual === "calendario");
+  fecha.setAttribute("aria-current", actual === "calendario" ? "true" : "false");
+}
+
+async function aplicarAjustes(): Promise<void> {
+  const a = await leerAjustes();
+  ajustes = a;
+  if (vistaRestaurada) {
+    calcularOrden();
+  } else {
+    const guardada = await leer("ultimaVista", VISTA_POR_DEFECTO);
+    // Si mientras tanto saltó un aviso (p. ej. una pausa vencida al arrancar), manda su vista
+    calcularOrden(Date.now() < avisoHasta ? undefined : guardada);
+    vistaRestaurada = true;
+  }
+
+  escala = a.escala;
+  document.documentElement.style.setProperty("--escala", String(escala));
+  // Rust redimensiona y recoloca la ventana; el rect se reenvía al cambiar de tamaño
+  await invoke("aplicar_ajustes_ventana", {
+    ajustes: { escala: a.escala, desplazamiento: a.desplazamiento, monitor: a.monitor },
+  }).catch(console.error);
+  informarRect(abierta ? "expandida" : "compacta");
+}
+
+window.addEventListener("resize", () => informarRect(abierta ? "expandida" : "compacta"));
+listen(EVENTO_AJUSTES, () => void aplicarAjustes()).catch(console.error);
 
 // ---------- Arranque ----------
 
-$(document, "#estado").innerHTML = icono.estado;
+// Campana: solo visible (con punto rojo) mientras haya notificaciones en el Centro de actividades
+const campana = $(document, "#campana");
+campana.innerHTML = icono.campana;
+campana.addEventListener("click", () => {
+  invoke("abrir_centro_notificaciones").catch(console.error);
+});
+function fijarPendientes(total: number): void {
+  pendientes = total;
+  campana.hidden = total === 0;
+  campana.classList.toggle("pendientes", total > 0);
+  campana.title = total > 0 ? `Notificaciones (${total} sin leer)` : "Notificaciones";
+  pintarCompacta();
+}
+listen<number>("notification-count", ({ payload }) => fijarPendientes(payload)).catch(console.error);
+invoke<number>("contar_notificaciones").then(fijarPendientes).catch(console.error);
+$(document, "#reloj").addEventListener("click", () => irAVista("calendario"));
+const engranaje = $(document, "#engranaje");
+engranaje.innerHTML = icono.engranaje;
+engranaje.addEventListener("click", () => {
+  invoke("abrir_configuracion_cmd").catch(console.error);
+});
+iniciarSonido();
 iniciarNotificaciones(isla, $(document, "#notificacion"));
-ir(0);
+// Cambia el tamaño al empezar o terminar una notificación, o al estrecharse la píldora: se reenvía el rect
+new MutationObserver(() => {
+  informarRect(abierta ? "expandida" : "compacta");
+}).observe(isla, { attributes: true, attributeFilter: ["class"] });
+calcularOrden();
 pintarReloj();
 informarRect("compacta");
+void aplicarAjustes();

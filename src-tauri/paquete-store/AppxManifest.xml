@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paquete MSIX completo para Microsoft Store (isbar).
+  Identity y PublisherDisplayName vienen de Partner Center > Identidad del producto:
+  no se pueden cambiar. La versión la rellena scripts/paquete-store.ps1 (__VERSION__).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity
+    Name="Gabrieltosh.isbar"
+    Publisher="CN=24BD4EB3-E2AF-4BE1-A891-986DC84899EB"
+    Version="__VERSION__"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>isbar</DisplayName>
+    <PublisherDisplayName>Gabrieltosh</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="es-es" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Isbar" Executable="isla.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="isbar"
+        Description="Barra flotante en la parte superior de la pantalla: música, notificaciones, pomodoro, agua, pausas activas y calendario."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Square71x71Logo="Assets\Square71x71Logo.png" ShortName="isbar" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Inicio con Windows dentro del paquete (la clave Run del registro no sirve en MSIX).
+             TaskId debe coincidir con src-tauri/src/autoarranque.rs -->
+        <desktop:Extension Category="windows.startupTask" Executable="isla.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="IsbarInicio" Enabled="false" DisplayName="isbar" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Leer las notificaciones del sistema para mostrarlas en la barra -->
+    <uap3:Capability Name="userNotificationListener" />
+    <!-- App de escritorio (Tauri/WebView2) -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

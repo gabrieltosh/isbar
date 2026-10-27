@@ -18,6 +18,15 @@ export function alAviso(fn: (p: PeticionAviso) => void): void {
   bus.addEventListener("aviso", (e) => fn((e as CustomEvent<PeticionAviso>).detail));
 }
 
+/** Termina antes de tiempo el aviso en curso (p. ej. al cerrar una notificación). */
+export function terminarAviso(): void {
+  bus.dispatchEvent(new Event("fin-aviso"));
+}
+
+export function alTerminarAviso(fn: () => void): void {
+  bus.addEventListener("fin-aviso", fn);
+}
+
 /** Avisa de que el contenido de la vista compacta puede haber cambiado. */
 export function compactaCambiada(): void {
   bus.dispatchEvent(new Event("compacta"));

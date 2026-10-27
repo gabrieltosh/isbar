@@ -9,6 +9,8 @@
   </head>
 
   <body>
+    <!-- El marco aplica el tamaño elegido en la configuración (--escala) -->
+    <div class="marco">
     <div id="isla" class="isla">
       <span class="oreja izq"></span>
       <span class="oreja der"></span>
@@ -23,20 +25,28 @@
       <!-- Vista expandida -->
       <div class="expandida">
         <header class="cabecera">
-          <div class="titulo" id="titulo"></div>
+          <!-- Navegación: un icono por vista activa, fijo arriba porque la isla crece y encoge
+               hacia abajo (también se cambia con la rueda; al Calendario se va con la fecha) -->
+          <nav class="puntos" id="puntos"></nav>
           <div class="reloj">
-            <span class="estado" id="estado"></span>
-            <span id="fecha"></span>
-            <b id="hora"></b>
+            <!-- Campana: solo si hay notificaciones sin descartar; abre el Centro de actividades -->
+            <button class="campana" id="campana" title="Notificaciones" aria-label="Notificaciones" hidden></button>
+            <!-- Al pulsar la fecha/hora se abre la vista de Calendario -->
+            <button class="reloj-fecha" id="reloj" title="Ver calendario">
+              <span id="fecha"></span>
+              <b id="hora"></b>
+            </button>
           </div>
-          <div class="indicador" id="indicador"></div>
+          <div class="cabecera-der">
+            <button class="icono-cab engranaje" id="engranaje" aria-label="Configuración" title="Configuración"></button>
+          </div>
         </header>
-        <button class="flecha izq" id="anterior" aria-label="Vista anterior"></button>
+        <!-- Título de la sección actual, en su propia línea bajo la cabecera -->
+        <div class="titulo" id="titulo"></div>
         <div class="vistas" id="vistas"></div>
-        <button class="flecha der" id="siguiente" aria-label="Vista siguiente"></button>
-        <div class="puntos" id="puntos"></div>
         <div class="notificacion" id="notificacion"></div>
       </div>
+    </div>
     </div>
   </body>
 </html>

@@ -1,4 +1,6 @@
 // Vista Pomodoro: cuenta atrás con anillo rojo. Sigue contando con la isla contraída.
+import { listen } from "@tauri-apps/api/event";
+import { EVENTO_AJUSTES, POMODORO_POR_DEFECTO, type ConfigPomodoro } from "../ajustes";
 import { compactaCambiada, pedirAviso } from "../bus";
 import { icono } from "../icons";
 import { guardar, leer } from "../store";
@@ -6,13 +8,6 @@ import { $, anilloSvg, fijarAnillo, mmss } from "../util";
 import type { Vista } from "./tipos";
 
 type Modo = "enfoque" | "corto" | "largo";
-
-interface Config {
-  enfoque: number; // minutos
-  corto: number;
-  largo: number;
-  cadaLargo: number; // descanso largo cada N enfoques
-}
 
 interface Estado {
   modo: Modo;
@@ -30,7 +25,7 @@ const ETIQUETA: Record<Modo, string> = {
   largo: "Descanso largo",
 };
 
-let config: Config = { enfoque: 25, corto: 5, largo: 15, cadaLargo: 4 };
+let config: ConfigPomodoro = POMODORO_POR_DEFECTO;
 let estado: Estado = { modo: "enfoque", corriendo: false, finEn: 0, restante: 25 * 60_000, ciclos: 0 };
 let raiz: HTMLElement;
 let temporizador = 0;
@@ -131,6 +126,18 @@ export const pomodoro: Vista = {
       arrancarReloj();
       tic();
     })();
+
+    // Duraciones cambiadas en la configuración
+    listen(EVENTO_AJUSTES, async () => {
+      const duracionAntes = duracion(estado.modo);
+      config = await leer("pomodoroConfig", config);
+      // Si estaba parado sin empezar, se ajusta a la nueva duración
+      if (!estado.corriendo && estado.restante === duracionAntes) {
+        estado = { ...estado, restante: duracion(estado.modo) };
+        persistir();
+      }
+      tic();
+    }).catch(console.error);
   },
 
   compacta() {

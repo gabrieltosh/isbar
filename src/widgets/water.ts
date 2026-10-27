@@ -1,23 +1,19 @@
 // Vista Agua: litros de hoy frente a la meta, botón Beber y recordatorio periódico.
+import { listen } from "@tauri-apps/api/event";
+import { AGUA_POR_DEFECTO, EVENTO_AJUSTES, type ConfigAgua } from "../ajustes";
 import { pedirAviso } from "../bus";
 import { icono } from "../icons";
+import { sonarAviso } from "../sonido";
 import { guardar, leer } from "../store";
 import { $, anilloSvg, fijarAnillo, hoy } from "../util";
 import type { Vista } from "./tipos";
-
-interface Config {
-  meta: number; // ml
-  sorbo: number; // ml por cada "Beber"
-  intervalo: number; // minutos entre recordatorios
-  recordatorios: boolean;
-}
 
 interface Registro {
   fecha: string;
   ml: number;
 }
 
-let config: Config = { meta: 2000, sorbo: 250, intervalo: 60, recordatorios: false };
+let config: ConfigAgua = AGUA_POR_DEFECTO;
 let registro: Registro = { fecha: hoy(), ml: 0 };
 let ultimoAviso = Date.now();
 let raiz: HTMLElement;
@@ -62,7 +58,7 @@ function beber(): void {
 }
 
 // Pasos de los ajustes: [clave, paso, mínimo, máximo]
-const AJUSTES: Record<string, [keyof Config, number, number, number]> = {
+const AJUSTES: Record<string, [keyof ConfigAgua, number, number, number]> = {
   meta: ["meta", 250, 500, 6000],
   intervalo: ["intervalo", 15, 15, 240],
   sorbo: ["sorbo", 50, 50, 1000],
@@ -123,6 +119,7 @@ export const agua: Vista = {
     window.setInterval(() => {
       if (config.recordatorios && Date.now() - ultimoAviso >= config.intervalo * 60_000) {
         ultimoAviso = Date.now();
+        sonarAviso();
         pedirAviso({ vista: "agua", duracion: 6000 });
       }
       pintar();
@@ -134,5 +131,11 @@ export const agua: Vista = {
       registro = await leer("agua", registro);
       pintar();
     })();
+
+    // Meta, trago o recordatorio cambiados en la configuración
+    listen(EVENTO_AJUSTES, async () => {
+      config = await leer("aguaConfig", config);
+      pintar();
+    }).catch(console.error);
   },
 };

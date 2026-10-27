@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/src/config.css" />
+    <title>Configuración de Isla</title>
+    <script type="module" src="/src/config.ts" defer></script>
+  </head>
+
+  <body>
+    <main>
+      <section>
+        <h2>Vistas</h2>
+        <p class="ayuda">Activa las que quieras ver y ordénalas con las flechas. Sus iconos aparecen abajo en la isla, en este orden (Música solo cuando suena algo).</p>
+        <ul id="vistas" class="vistas"></ul>
+      </section>
+
+      <section>
+        <h2>Pomodoro</h2>
+        <label>Enfoque <span><input type="number" min="1" max="120" data-campo="pomodoro.enfoque" /> min</span></label>
+        <label>Descanso corto <span><input type="number" min="1" max="60" data-campo="pomodoro.corto" /> min</span></label>
+        <label>Descanso largo <span><input type="number" min="1" max="120" data-campo="pomodoro.largo" /> min</span></label>
+        <label>Descanso largo cada <span><input type="number" min="1" max="12" data-campo="pomodoro.cadaLargo" /> enfoques</span></label>
+      </section>
+
+      <section>
+        <h2>Agua</h2>
+        <label>Meta diaria <span><input type="number" min="0.5" max="6" step="0.25" data-campo="agua.meta" data-factor="1000" /> L</span></label>
+        <label>Por trago <span><input type="number" min="50" max="1000" step="50" data-campo="agua.sorbo" /> ml</span></label>
+        <label>Recordatorio cada <span><input type="number" min="15" max="240" step="15" data-campo="agua.intervalo" /> min</span></label>
+        <label>Recordatorios activos <input type="checkbox" class="interruptor" data-campo="agua.recordatorios" /></label>
+      </section>
+
+      <section>
+        <h2>Pausas activas</h2>
+        <label>Alarma de postura <input type="checkbox" class="interruptor" data-campo="pausas.posturaActiva" /></label>
+        <label>Postura cada <span><input type="number" min="15" max="180" step="5" data-campo="pausas.posturaIntervalo" /> min</span></label>
+        <label>Alarma de vista <input type="checkbox" class="interruptor" data-campo="pausas.vistaActiva" /></label>
+        <label>Vista cada <span><input type="number" min="10" max="120" step="5" data-campo="pausas.vistaIntervalo" /> min</span></label>
+      </section>
+
+      <section>
+        <h2>Sonido de los avisos</h2>
+        <p class="ayuda">Campanita suave para las pausas activas y el recordatorio de agua.</p>
+        <label>Sonido <input type="checkbox" class="interruptor" data-campo="sonido.activo" /></label>
+        <label>Volumen <span><input type="range" min="0.1" max="1" step="0.1" data-campo="sonido.volumen" /> <output id="v-volumen"></output> <button type="button" class="probar" id="probar-sonido">Probar</button></span></label>
+      </section>
+
+      <section>
+        <h2>Isla</h2>
+        <label>Tamaño <span><input type="range" min="0.8" max="1.3" step="0.05" data-campo="ajustes.escala" /> <output id="v-escala"></output></span></label>
+        <label>Separación del borde <span><input type="range" min="0" max="40" step="1" data-campo="ajustes.desplazamiento" /> <output id="v-desplazamiento"></output></span></label>
+        <label>Monitor <select id="monitor"></select></label>
+      </section>
+
+      <section>
+        <h2>General</h2>
+        <label>Iniciar con Windows <input type="checkbox" class="interruptor" id="autoarranque" /></label>
+      </section>
+    </main>
+  </body>
+</html>

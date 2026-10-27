@@ -12,4 +12,6 @@ export interface Vista {
   montar(contenedor: HTMLElement): void;
   /** Contenido para la vista compacta, o null si no tiene nada que mostrar. */
   compacta?(): Compacta | null;
+  /** Alto que necesita la isla expandida ahora mismo (px), o null para el normal. */
+  alto?(): number | null;
 }

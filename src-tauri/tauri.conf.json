@@ -16,7 +16,7 @@
         "label": "main",
         "title": "Isla",
         "width": 560,
-        "height": 210,
+        "height": 290,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
@@ -25,7 +25,8 @@
         "maximizable": false,
         "minimizable": false,
         "skipTaskbar": true,
-        "focus": false
+        "focus": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
       }
     ],
     "security": {
