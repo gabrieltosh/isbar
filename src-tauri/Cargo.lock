@@ -1736,6 +1736,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-store",
  "windows",
+ "windows-collections",
  "windows-future",
 ]
 

@@ -20,6 +20,7 @@ pub fn run() {
         media::media_play_pause,
         media::media_next,
         media::media_previous,
+        notifications::abrir_ajustes_notificaciones,
     ]);
     #[cfg(not(target_os = "windows"))]
     let builder = builder.invoke_handler(tauri::generate_handler![window::set_island_rect]);
@@ -32,7 +33,10 @@ pub fn run() {
             }
             window::iniciar_click_through(app.handle().clone());
             #[cfg(target_os = "windows")]
-            media::iniciar(app.handle().clone());
+            {
+                media::iniciar(app.handle().clone());
+                notifications::iniciar(app.handle().clone());
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

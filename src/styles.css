@@ -801,6 +801,10 @@ svg {
   opacity: 1;
   transform: none;
 }
+.isla.con-notificacion .notificacion.accionable {
+  pointer-events: auto;
+  cursor: pointer;
+}
 .isla.con-notificacion .vistas,
 .isla.con-notificacion .titulo { opacity: 0; }
 .n-icono {

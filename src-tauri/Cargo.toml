@@ -33,15 +33,21 @@ opt-level = 3
 panic = "abort"
 strip = true
 
-# Solo Windows: SMTC (multimedia) vía WinRT
+# Solo Windows: SMTC (multimedia) y notificaciones vía WinRT
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = [
+  "ApplicationModel",
+  "Foundation_Collections",
   "Media_Control",
   "Foundation",
   "Storage_Streams",
+  "UI_Notifications",
+  "UI_Notifications_Management",
   "Win32_System_WinRT",
 ] }
 # Tipo IAsyncOperation de WinRT (el crate windows ya no lo reexporta)
 windows-future = "0.3"
+# Tipo IVectorView de WinRT (listas de notificaciones)
+windows-collections = "0.3"
 # Codificar la carátula como data URL
 base64 = "0.22"

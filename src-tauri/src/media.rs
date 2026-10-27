@@ -64,7 +64,7 @@ enum Senal {
 }
 
 /// Inicializa WinRT en el hilo actual. Si ya lo estaba, el error se ignora.
-fn iniciar_winrt() {
+pub(crate) fn iniciar_winrt() {
     // SAFETY: RoInitialize solo prepara el apartamento COM del hilo actual.
     let _ = unsafe { RoInitialize(RO_INIT_MULTITHREADED) };
 }
@@ -201,7 +201,7 @@ fn leer(sesion: &Sesion, caratula: &mut CacheCaratula) -> WinResult<InfoMedia> {
     let clave = format!("{app}\u{1}{titulo}\u{1}{artista}");
     let caratula = caratula.obtener(&clave, || {
         let referencia = propiedades.Thumbnail()?;
-        leer_caratula(referencia.OpenReadAsync()?)
+        leer_imagen(referencia.OpenReadAsync()?)
     });
 
     Ok(InfoMedia {
@@ -274,7 +274,8 @@ impl CacheCaratula {
     }
 }
 
-fn leer_caratula(
+/// Lee una imagen de WinRT (carátula, logo de app) como data URL.
+pub(crate) fn leer_imagen(
     operacion: IAsyncOperation<windows::Storage::Streams::IRandomAccessStreamWithContentType>,
 ) -> WinResult<Option<String>> {
     let flujo = operacion.join()?;
