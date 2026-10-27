@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "paquete:registrar": "powershell -ExecutionPolicy Bypass -File scripts/register-dev.ps1",
+    "paquete:quitar": "powershell -ExecutionPolicy Bypass -File scripts/unregister-dev.ps1",
+    "paquete:comprobar": "powershell -ExecutionPolicy Bypass -File scripts/check-identity.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

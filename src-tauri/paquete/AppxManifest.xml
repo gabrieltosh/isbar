@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sparse package: da identidad de paquete a isla.exe sin empaquetarlo.
+  Hace falta para UserNotificationListener (leer las notificaciones del sistema).
+  Name y Publisher deben coincidir con el manifiesto embebido (isla.exe.manifest).
+  El nombre es "IslaApp" y no "Isla": la familia Isla_* quedó con estado residual de
+  un registro sin firmar y Windows ya no le da identidad al ejecutable.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 rescap">
+
+  <Identity Name="IslaApp" Publisher="CN=IslaDev" Version="0.1.0.0" ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>Isla</DisplayName>
+    <PublisherDisplayName>Gabriel Pinto</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+
+  <Resources>
+    <Resource Language="es-es" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22631.0" />
+  </Dependencies>
+
+  <Capabilities>
+    <uap3:Capability Name="userNotificationListener" />
+    <rescap:Capability Name="runFullTrust" />
+    <!-- Windows 10 la exige para RuntimeBehavior="win32App" -->
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+
+  <Applications>
+    <!-- El ejecutable se busca en la carpeta externa (-ExternalLocation) -->
+    <Application Id="Isla" Executable="isla.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+        DisplayName="Isla"
+        Description="Dynamic Island para Windows"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        AppListEntry="none" />
+    </Application>
+  </Applications>
+</Package>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Solo ASCII en este archivo: el compilador de recursos estropea los acentos y Windows rechaza el manifiesto -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity version="0.1.0.0" name="Isla" />
+  <!-- Identidad del sparse package: debe coincidir con paquete/AppxManifest.xml -->
+  <msix xmlns="urn:schemas-microsoft-com:msix.v1"
+        publisher="CN=IslaDev"
+        packageName="IslaApp"
+        applicationId="Isla" />
+  <!-- Controles comunes v6 (el manifiesto por defecto de Tauri tambien lo incluye) -->
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+        type="win32"
+        name="Microsoft.Windows.Common-Controls"
+        version="6.0.0.0"
+        processorArchitecture="*"
+        publicKeyToken="6595b64144ccf1df"
+        language="*" />
+    </dependentAssembly>
+  </dependency>
+</assembly>
