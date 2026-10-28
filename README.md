@@ -1,7 +1,34 @@
-# isbar
+<p align="center">
+  <img src="app-icon.svg" width="110" alt="Logo de isbar" />
+</p>
 
-Barra flotante para Windows inspirada en la isla dinámica de los móviles: una píldora negra
-anclada arriba al centro de la pantalla que se expande al pasar el ratón.
+<h1 align="center">isbar</h1>
+
+<p align="center">
+  <b>Tu isla dinámica en Windows.</b><br />
+  Una píldora negra anclada arriba al centro de la pantalla que se expande al pasar el ratón.
+</p>
+
+<p align="center">
+  <a href="https://gabrieltosh.github.io/isbar/">Web</a> ·
+  <a href="https://gabrieltosh.github.io/isbar/privacidad">Privacidad</a> ·
+  <a href="LICENSE">Licencia MIT</a>
+</p>
+
+<p align="center">
+  <img src="tienda/capturas/1-musica.png" alt="isbar mostrando la canción que suena con sus controles" />
+</p>
+
+<table>
+  <tr>
+    <td><img src="tienda/capturas/2-pomodoro.png" alt="Vista Pomodoro" /></td>
+    <td><img src="tienda/capturas/3-pausas.png" alt="Vista de pausas activas" /></td>
+  </tr>
+  <tr>
+    <td><img src="tienda/capturas/4-agua.png" alt="Vista del recordatorio de agua" /></td>
+    <td><img src="tienda/capturas/5-calendario.png" alt="Vista de calendario" /></td>
+  </tr>
+</table>
 
 ## Qué hace
 
