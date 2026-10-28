@@ -10,7 +10,6 @@ import {
   SONIDO_POR_DEFECTO,
   leerAjustes,
   type Ajustes,
-  type Estilo,
   type ConfigAgua,
   type ConfigPausas,
   type ConfigPomodoro,
@@ -136,15 +135,6 @@ pintarValores();
 
 // Escuchar el aviso de pausa con el volumen elegido
 $(document, "#probar-sonido").addEventListener("click", () => campanita(grupos.sonido.volumen));
-
-// ---------- Estilo ----------
-
-const selectorEstilo = $<HTMLSelectElement>(document, "#estilo");
-selectorEstilo.value = grupos.ajustes.estilo;
-selectorEstilo.addEventListener("change", () => {
-  grupos.ajustes.estilo = selectorEstilo.value as Estilo;
-  void guardarGrupo("ajustes");
-});
 
 // ---------- Monitor ----------
 
