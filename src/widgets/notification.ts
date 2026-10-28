@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { pedirAviso } from "../bus";
 import { escapar } from "../util";
-import { musicaSonando } from "./media";
+import { musicaSonando } from "../estado/musica";
 
 export interface Notificacion {
   /** Id de Windows (solo las del sistema): al pulsarla se abre su app */

@@ -16,7 +16,11 @@ export const NOMBRES_VISTAS: Record<string, string> = {
   pausas: "Pausas activas",
 };
 
+/** Cómo se muestra isbar: la isla arriba o el compañero que se mueve por la pantalla. */
+export type Estilo = "isla" | "companero";
+
 export interface Ajustes {
+  estilo: Estilo;
   /** Orden de las vistas (ids); también el de los iconos de la barra de abajo */
   vistas: string[];
   /** Vistas desactivadas */
@@ -30,6 +34,7 @@ export interface Ajustes {
 }
 
 export const AJUSTES_POR_DEFECTO: Ajustes = {
+  estilo: "isla",
   vistas: Object.keys(NOMBRES_VISTAS),
   ocultas: [],
   escala: 1,
@@ -85,6 +90,7 @@ export async function leerAjustes(): Promise<Ajustes> {
   for (const id of conocidas) if (!vistas.includes(id)) vistas.push(id);
   // Se descartan campos de versiones anteriores (p. ej. los iconos de la cabecera)
   return {
+    estilo: a.estilo === "companero" ? "companero" : "isla",
     vistas,
     ocultas: a.ocultas.filter((id) => conocidas.includes(id)),
     escala: a.escala,
