@@ -7,6 +7,8 @@ import { escapar } from "../util";
 import { musicaSonando } from "./media";
 
 export interface Notificacion {
+  /** Id de Windows (solo las del sistema): al pulsarla se abre su app */
+  id?: number;
   app: string;
   /** Icono de la app como data URL, o null */
   icono: string | null;
@@ -46,7 +48,8 @@ function siguiente(isla: HTMLElement, caja: HTMLElement): void {
     </div>`;
   caja.classList.toggle("accionable", Boolean(n.accion));
   isla.classList.add("con-notificacion");
-  const duracion = n.accion ? DURACION_PERMISO : DURACION;
+  // Los avisos propios con acción (p. ej. el del permiso) se quedan más tiempo
+  const duracion = n.accion && n.id === undefined ? DURACION_PERMISO : DURACION;
   pedirAviso({ duracion });
   window.setTimeout(() => siguiente(isla, caja), duracion);
 }
@@ -87,7 +90,10 @@ export function iniciarNotificaciones(isla: HTMLElement, caja: HTMLElement): voi
 
   listen<Notificacion>("notification-new", ({ payload }) => {
     if (musicaSonando() && REPRODUCTORES.test(payload.app)) return;
-    encolar(isla, caja, payload);
+    const id = payload.id;
+    // Como en Windows: al pulsarla se abre la app que la envió
+    const accion = id === undefined ? undefined : () => void invoke("abrir_notificacion", { id }).catch(console.error);
+    encolar(isla, caja, { ...payload, accion });
   }).catch(console.error);
 
   listen<{ estado: EstadoPermiso }>("notification-access", ({ payload }) => {

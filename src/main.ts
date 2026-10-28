@@ -7,6 +7,7 @@ import { barras, icono } from "./icons";
 import { iniciarSonido } from "./sonido";
 import { guardar, leer } from "./store";
 import { $ } from "./util";
+import { avisos } from "./widgets/avisos";
 import { calendario } from "./widgets/calendar";
 import { claude } from "./widgets/claude";
 import { pausas } from "./widgets/pausas";
@@ -18,7 +19,7 @@ import type { Compacta, Vista } from "./widgets/tipos";
 import { tareasVista } from "./widgets/todo";
 import { agua } from "./widgets/water";
 
-const VISTAS: Vista[] = [media, pomodoro, agua, bandeja, tareasVista, calendario, claude, pausas];
+const VISTAS: Vista[] = [media, pomodoro, agua, bandeja, tareasVista, calendario, claude, pausas, avisos];
 
 // Icono de cada vista en la navegación de la cabecera (Música usa las barritas animadas)
 const ICONO_VISTA: Record<string, string> = {
@@ -206,13 +207,26 @@ let ultimaRueda = 0;
 isla.addEventListener(
   "wheel",
   (e) => {
+    // Dentro de una lista con desplazamiento (notificaciones, tareas) la rueda la desplaza
+    if (dentroDeScroll(e.target)) return;
+    // Solo la rueda vertical cambia de sección (el desplazamiento horizontal no)
+    if (e.deltaY === 0) return;
     const ahora = Date.now();
     if (!abierta || ahora - ultimaRueda < 300) return;
     ultimaRueda = ahora;
-    ir(posicion + (e.deltaY > 0 || e.deltaX > 0 ? 1 : -1));
+    ir(posicion + (e.deltaY > 0 ? 1 : -1));
   },
   { passive: true },
 );
+
+/** El elemento está dentro de algo que se desplaza en vertical y tiene contenido de sobra. */
+function dentroDeScroll(objetivo: EventTarget | null): boolean {
+  for (let el = objetivo instanceof Element ? objetivo : null; el && el !== isla; el = el.parentElement) {
+    const { overflowY } = getComputedStyle(el);
+    if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) return true;
+  }
+  return false;
+}
 
 // ---------- Reloj y vista compacta ----------
 
@@ -285,12 +299,15 @@ function calcularOrden(preferida = VISTAS[orden[posicion]]?.id): void {
     .filter((i) => i >= 0);
   // Siempre queda al menos una vista (la primera que no sea Música)
   if (orden.length === 0) orden = [VISTAS.findIndex((v) => v.id !== "media")];
+  // Notificaciones: no está en la configuración; aparece mientras haya pendientes (o si se está
+  // viendo, para que al borrarlas todas no salte de vista) y se abre con la campana
+  if (pendientes > 0 || preferida === "avisos") orden.push(VISTAS.indexOf(avisos));
   // Barra de navegación: un icono por vista activa, en el orden de la configuración.
   // El Calendario no lleva icono: se abre pulsando la fecha de arriba (y con la rueda)
   puntos.innerHTML = orden
     .map((i, p) => {
       const id = VISTAS[i].id;
-      if (id === "calendario") return "";
+      if (id === "calendario" || id === "avisos") return "";
       const nombre = NOMBRES_VISTAS[id] ?? "";
       const simbolo = id === "media" ? barras(musicaSonando()) : (ICONO_VISTA[id] ?? "");
       return `<button class="icono-cab" data-pos="${p}" data-vista="${id}" title="${nombre}" aria-label="${nombre}">${simbolo}</button>`;
@@ -314,6 +331,8 @@ function marcarIconoActivo(): void {
   const fecha = $(document, "#reloj");
   fecha.classList.toggle("activo", actual === "calendario");
   fecha.setAttribute("aria-current", actual === "calendario" ? "true" : "false");
+  // En Notificaciones, la campana
+  $(document, "#campana").classList.toggle("activo", actual === "avisos");
 }
 
 async function aplicarAjustes(): Promise<void> {
@@ -342,14 +361,16 @@ listen(EVENTO_AJUSTES, () => void aplicarAjustes()).catch(console.error);
 
 // ---------- Arranque ----------
 
-// Campana: solo visible (con punto rojo) mientras haya notificaciones en el Centro de actividades
+// Campana: solo visible (con punto rojo) mientras haya notificaciones sin descartar.
+// Abre la vista de Notificaciones, donde se leen y se descartan
 const campana = $(document, "#campana");
 campana.innerHTML = icono.campana;
-campana.addEventListener("click", () => {
-  invoke("abrir_centro_notificaciones").catch(console.error);
-});
+campana.addEventListener("click", () => irAVista("avisos"));
 function fijarPendientes(total: number): void {
+  const habia = pendientes > 0;
   pendientes = total;
+  // La vista de Notificaciones entra o sale de la rueda (si no se está viendo)
+  if (habia !== total > 0 && isla.dataset.vista !== "avisos") calcularOrden();
   campana.hidden = total === 0;
   campana.classList.toggle("pendientes", total > 0);
   campana.title = total > 0 ? `Notificaciones (${total} sin leer)` : "Notificaciones";

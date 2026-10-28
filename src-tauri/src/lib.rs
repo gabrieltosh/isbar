@@ -36,6 +36,10 @@ pub fn run() {
         notifications::abrir_ajustes_notificaciones,
         notifications::contar_notificaciones,
         notifications::abrir_centro_notificaciones,
+        notifications::listar_notificaciones,
+        notifications::eliminar_notificacion,
+        notifications::eliminar_notificaciones,
+        notifications::abrir_notificacion,
     ]);
     #[cfg(not(target_os = "windows"))]
     let builder = builder.invoke_handler(tauri::generate_handler![

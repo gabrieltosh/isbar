@@ -6,14 +6,20 @@
 //!
 //! `NotificationChanged` no siempre funciona en apps de escritorio: si no se puede
 //! suscribir, se consulta la lista cada segundo y se comparan los IDs.
+//!
+//! La vista de notificaciones de la isla las lista y las descarta con
+//! `listar_notificaciones`, `eliminar_notificacion` y `eliminar_notificaciones`.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::process::Command;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
 
 use serde::Serialize;
+use tauri::async_runtime::spawn_blocking;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_opener::OpenerExt;
 use windows::core::Result as WinResult;
@@ -33,6 +39,10 @@ const ESPERA_PERMISO: Duration = Duration::from_secs(10);
 
 #[derive(Serialize, Clone)]
 pub struct Notificacion {
+    /// Id de Windows: sirve para descartarla
+    id: u32,
+    /// Cuándo llegó (epoch ms)
+    fecha: i64,
     app: String,
     icono: Option<String>,
     titulo: String,
@@ -91,7 +101,6 @@ fn bucle(app: &AppHandle) -> WinResult<()> {
         .is_ok();
     let espera = if con_eventos { SONDEO_CON_EVENTOS } else { SONDEO };
 
-    let mut iconos: HashMap<String, Option<String>> = HashMap::new();
     // Las que ya estaban al arrancar no se muestran
     let mut vistas: HashSet<u32> = match consultar(&escucha) {
         Ok(lista) => lista.iter().filter_map(|n| n.Id().ok()).collect(),
@@ -120,7 +129,7 @@ fn bucle(app: &AppHandle) -> WinResult<()> {
             if vistas.contains(&id) {
                 continue;
             }
-            match leer(n, &mut iconos) {
+            match leer(n) {
                 Ok(info) => {
                     let _ = app.emit("notification-new", info);
                 }
@@ -162,20 +171,35 @@ fn consultar(escucha: &Escucha) -> WinResult<Vec<UserNotification>> {
     (0..vista.Size()?).map(|i| vista.GetAt(i)).collect()
 }
 
-fn leer(n: &UserNotification, iconos: &mut HashMap<String, Option<String>>) -> WinResult<Notificacion> {
+/// Logo de cada app (como data URL), leído una sola vez y compartido entre hilos.
+fn iconos() -> &'static Mutex<HashMap<String, Option<String>>> {
+    static ICONOS: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+    ICONOS.get_or_init(Mutex::default)
+}
+
+/// Diferencia entre el origen de DateTime de WinRT (1601, en unidades de 100 ns) y el de Unix.
+const TICKS_HASTA_1970: i64 = 116_444_736_000_000_000;
+
+fn leer(n: &UserNotification) -> WinResult<Notificacion> {
+    let id = n.Id()?;
+    let fecha = n.CreationTime().map(|t| (t.UniversalTime - TICKS_HASTA_1970) / 10_000).unwrap_or(0);
     let pantalla = n.AppInfo()?.DisplayInfo()?;
     let app = pantalla.DisplayName()?.to_string();
 
-    // El logo de cada app se lee una sola vez
-    let icono = iconos
-        .entry(app.clone())
-        .or_insert_with(|| {
-            pantalla
+    let guardado = iconos().lock().ok().and_then(|c| c.get(&app).cloned());
+    let icono = match guardado {
+        Some(icono) => icono,
+        None => {
+            let icono = pantalla
                 .GetLogo(Size { Width: 64.0, Height: 64.0 })
                 .and_then(|logo| leer_imagen(logo.OpenReadAsync()?))
-                .unwrap_or(None)
-        })
-        .clone();
+                .unwrap_or(None);
+            if let Ok(mut cache) = iconos().lock() {
+                cache.insert(app.clone(), icono.clone());
+            }
+            icono
+        }
+    };
 
     // Plantilla ToastGeneric: el primer texto es el título y el resto el cuerpo
     let binding = n
@@ -187,7 +211,72 @@ fn leer(n: &UserNotification, iconos: &mut HashMap<String, Option<String>>) -> W
     let titulo = lineas.next().map(|t| t.to_string()).unwrap_or_default();
     let texto = lineas.map(|t| t.to_string()).collect::<Vec<_>>().join("\n");
 
-    Ok(Notificacion { app, icono, titulo, texto })
+    Ok(Notificacion { id, fecha, app, icono, titulo, texto })
+}
+
+/// Ejecuta una consulta WinRT en un hilo aparte (las llamadas bloquean) y la convierte en texto de error.
+async fn en_hilo<T: Send + 'static>(f: impl FnOnce(&Escucha) -> WinResult<T> + Send + 'static) -> Result<T, String> {
+    spawn_blocking(move || {
+        iniciar_winrt();
+        let escucha = Escucha::Current()?;
+        f(&escucha)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+/// Notificaciones pendientes, de la más reciente a la más antigua.
+#[tauri::command]
+pub async fn listar_notificaciones() -> Result<Vec<Notificacion>, String> {
+    en_hilo(|escucha| {
+        let mut lista: Vec<Notificacion> = consultar(escucha)?
+            .iter()
+            .filter_map(|n| leer(n).map_err(|e| eprintln!("notificaciones: {e}")).ok())
+            .collect();
+        lista.sort_by_key(|n| std::cmp::Reverse(n.fecha));
+        Ok(lista)
+    })
+    .await
+}
+
+/// Descarta una notificación (también desaparece del Centro de actividades).
+#[tauri::command]
+pub async fn eliminar_notificacion(app: AppHandle, id: u32) -> Result<(), String> {
+    let quedan = en_hilo(move |escucha| {
+        escucha.RemoveNotification(id)?;
+        Ok(consultar(escucha)?.len())
+    })
+    .await?;
+    fijar_pendientes(&app, quedan);
+    Ok(())
+}
+
+/// Abre la app que envió la notificación y la descarta, como al pulsarla en Windows.
+/// Windows no deja que otra app active el contenido concreto (el chat, el correo): solo la app.
+#[tauri::command]
+pub async fn abrir_notificacion(app: AppHandle, id: u32) -> Result<(), String> {
+    let (aumid, quedan) = en_hilo(move |escucha| {
+        let aumid = escucha.GetNotification(id)?.AppInfo()?.AppUserModelId()?.to_string();
+        escucha.RemoveNotification(id)?;
+        Ok((aumid, consultar(escucha)?.len()))
+    })
+    .await?;
+    fijar_pendientes(&app, quedan);
+    // shell:AppsFolder abre cualquier app por su AUMID (de la Store o de escritorio)
+    Command::new("explorer.exe")
+        .arg(format!("shell:AppsFolder\\{aumid}"))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Descarta todas las notificaciones.
+#[tauri::command]
+pub async fn eliminar_notificaciones(app: AppHandle) -> Result<(), String> {
+    en_hilo(|escucha| escucha.ClearNotifications()).await?;
+    fijar_pendientes(&app, 0);
+    Ok(())
 }
 
 /// Abre Configuración > Privacidad > Notificaciones para conceder el permiso.
